@@ -1,0 +1,10 @@
+name: WorldIsAlsoHardcore
+version: '${version}'
+main: io.github.worldisalsohardcore.WorldIsAlsoHardcorePlugin
+bootstrapper: io.github.worldisalsohardcore.WorldIsAlsoHardcoreBootstrap
+api-version: '1.21'
+description: 誰か1人でも死亡したら全員をキックしてワールドをリセットするハードコア用プラグイン
+permissions:
+  worldisalsohardcore.admin:
+    description: リセットの手動実行と設定リロード
+    default: op

@@ -1,0 +1,25 @@
+# 監視かつリセット対象のワールド名。
+# 空にすると「主ワールド (server.properties の level-name) と、
+# その _nether / _the_end」が自動的に対象になる。
+worlds: []
+
+# 死亡が発生したときに全員へ送るキック理由 (MiniMessage 形式)。
+kick-message: |-
+  <red><bold>ハードコア失敗</bold></red>
+  <white><player> が死亡しました。</white>
+  <gray>ワールドをリセットして再起動します。</gray>
+
+# キックの直前に全員へ流すブロードキャスト (MiniMessage 形式)。空文字で無効。
+broadcast-message: "<red><player> が死亡しました。ワールドをリセットします。"
+
+# 全員をキックしてからサーバーを停止するまでの待ち時間 (tick, 20 tick = 1 秒)。
+# 切断パケットを送り切るために 1 tick 以上を推奨。
+shutdown-delay-ticks: 20
+
+# shutdown: サーバーを停止する (外部のプロセス管理で再起動させる)
+# restart : Spigot の restart-script を使って再起動する
+shutdown-mode: shutdown
+
+# リセット時に server.properties の level-seed を新しい乱数へ書き換える。
+# false の場合、level-seed が固定されていると毎回まったく同じ地形が再生成される。
+randomize-seed: true
