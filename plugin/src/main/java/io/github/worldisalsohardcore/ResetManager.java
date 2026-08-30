@@ -5,6 +5,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -19,6 +20,8 @@ import java.util.stream.Stream;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -30,6 +33,12 @@ public final class ResetManager {
     static final String MARKER_FILE = "pending-reset.txt";
 
     private static final String SERVER_PROPERTIES = "server.properties";
+
+    /** 死亡から全員キックまでの既定の猶予 (秒)。 */
+    static final long DEFAULT_RESET_DELAY_SECONDS = 10L;
+
+    /** 猶予中に出す既定のタイトル。<seconds> は上の既定値に置き換わる。 */
+    static final String DEFAULT_TITLE = "<red><bold>サーバーは<seconds>秒後に削除されます";
 
     private final WorldIsAlsoHardcorePlugin plugin;
     /** 同一 tick に複数人が死亡しても1回しか発火させない。 */
@@ -110,23 +119,61 @@ public final class ResetManager {
             randomizeSeed();
         }
 
-        // 死亡イベントの処理中にキックすると不整合が起きうるので次 tick へ回す。
-        Bukkit.getScheduler().runTask(plugin, () -> kickEveryone(subject));
+        // 死亡イベントの処理中に画面や接続を触ると不整合が起きうるので次 tick へ回す。
+        Bukkit.getScheduler().runTask(plugin, () -> announce(subject));
         return true;
     }
 
-    private void kickEveryone(String subject) {
-        MiniMessage mm = MiniMessage.miniMessage();
+    /** 猶予の始まり。全員へタイトルを出し、キックを予約する。 */
+    private void announce(String subject) {
+        long seconds = Math.max(0L,
+                plugin.getConfig().getLong("reset-delay-seconds", DEFAULT_RESET_DELAY_SECONDS));
+        TagResolver tags = TagResolver.resolver(
+                Placeholder.unparsed("player", subject),
+                Placeholder.unparsed("seconds", String.valueOf(seconds)));
+
+        showResetTitle(tags, seconds);
 
         String broadcastRaw = plugin.getConfig().getString("broadcast-message", "");
         if (broadcastRaw != null && !broadcastRaw.isBlank()) {
-            Component broadcast = mm.deserialize(broadcastRaw, Placeholder.unparsed("player", subject));
-            Bukkit.broadcast(broadcast);
+            Bukkit.broadcast(MiniMessage.miniMessage().deserialize(broadcastRaw, tags));
         }
 
+        plugin.getLogger().warning(seconds + "秒後に全員をキックしてワールドをリセットします。");
+        Bukkit.getScheduler().runTaskLater(plugin, () -> kickEveryone(subject), seconds * 20L);
+    }
+
+    /**
+     * 猶予のあいだ全員へ出すタイトル。
+     *
+     * <p>チャットへ流れる死亡メッセージは {@link DeathListener} が打ち消すので、
+     * 死亡とリセットを知らせるのはこのタイトルだけになる。
+     */
+    private void showResetTitle(TagResolver tags, long seconds) {
+        String titleRaw = plugin.getConfig().getString("title", DEFAULT_TITLE);
+        if (titleRaw == null || titleRaw.isBlank()) {
+            return;
+        }
+        MiniMessage mm = MiniMessage.miniMessage();
+        String subtitleRaw = plugin.getConfig().getString("subtitle", "");
+        Title title = Title.title(
+                mm.deserialize(titleRaw, tags),
+                subtitleRaw == null || subtitleRaw.isBlank()
+                        ? Component.empty()
+                        : mm.deserialize(subtitleRaw, tags),
+                // キックの瞬間まで出しっぱなしにする。
+                Title.Times.times(Duration.ofMillis(250), Duration.ofSeconds(seconds),
+                        Duration.ofMillis(500)));
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            player.showTitle(title);
+        }
+    }
+
+    private void kickEveryone(String subject) {
         String kickRaw = plugin.getConfig().getString("kick-message",
                 "<red>誰かが死亡しました。ワールドをリセットします。");
-        Component kick = mm.deserialize(kickRaw == null ? "" : kickRaw,
+        Component kick = MiniMessage.miniMessage().deserialize(kickRaw == null ? "" : kickRaw,
                 Placeholder.unparsed("player", subject));
 
         for (Player player : Bukkit.getOnlinePlayers()) {

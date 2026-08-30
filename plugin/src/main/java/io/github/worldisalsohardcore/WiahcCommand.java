@@ -38,8 +38,12 @@ public final class WiahcCommand implements BasicCommand {
                 sender.sendMessage(Component.text("監視対象ワールド: " + resetManager.managedWorldNames(),
                         NamedTextColor.AQUA));
                 sender.sendMessage(Component.text(
-                        "shutdown-mode: " + plugin.getConfig().getString("shutdown-mode", "shutdown")
-                                + " / randomize-seed: " + plugin.getConfig().getBoolean("randomize-seed", true),
+                        "猶予: " + plugin.getConfig().getLong("reset-delay-seconds",
+                                ResetManager.DEFAULT_RESET_DELAY_SECONDS) + "秒"
+                                + " / shutdown-mode: "
+                                + plugin.getConfig().getString("shutdown-mode", "shutdown")
+                                + " / randomize-seed: "
+                                + plugin.getConfig().getBoolean("randomize-seed", true),
                         NamedTextColor.GRAY));
             }
             case "reset" -> {

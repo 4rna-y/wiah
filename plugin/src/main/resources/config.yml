@@ -3,14 +3,26 @@
 # その _nether / _the_end」が自動的に対象になる。
 worlds: []
 
-# 死亡が発生したときに全員へ送るキック理由 (MiniMessage 形式)。
+# 死亡してから全員をキックするまでの猶予 (秒)。この間ずっとタイトルが出る。
+reset-delay-seconds: 10
+
+# 猶予中に全員へ出すタイトル (MiniMessage 形式)。
+# <player> は死亡者名、<seconds> は上の reset-delay-seconds に置き換わる。
+# 空文字にするとタイトルを出さない。
+title: "<red><bold>サーバーは<seconds>秒後に削除されます"
+
+# タイトルの下に出る小さい方 (MiniMessage 形式)。空文字で無効。
+subtitle: "<gray><player> が死亡しました"
+
+# 猶予の開始と同時に流すチャット (MiniMessage 形式)。空文字で無効。
+# 死亡メッセージはタイトルに置き換えるため、既定では出さない。
+broadcast-message: ""
+
+# 猶予が終わったときのキック理由 (MiniMessage 形式)。
 kick-message: |-
   <red><bold>ハードコア失敗</bold></red>
   <white><player> が死亡しました。</white>
   <gray>ワールドをリセットして再起動します。</gray>
-
-# キックの直前に全員へ流すブロードキャスト (MiniMessage 形式)。空文字で無効。
-broadcast-message: "<red><player> が死亡しました。ワールドをリセットします。"
 
 # 全員をキックしてからサーバーを停止するまでの待ち時間 (tick, 20 tick = 1 秒)。
 # 切断パケットを送り切るために 1 tick 以上を推奨。
