@@ -68,6 +68,35 @@ class DefaultConfigTest {
                 "タイトルに置き換えた意味が無くなるので、既定では空にしておく");
     }
 
+    @Test
+    @DisplayName("同梱の config.yml に Webhook URL を載せない")
+    void bundledWebhookUrlIsEmpty() {
+        // Webhook URL は事実上の認証情報。ここが埋まったままリリースすると、
+        // 公開リポジトリと release jar の両方にそのチャンネルへの投稿権が載る。
+        assertTrue(config.getBoolean("discord.enabled"), "URL さえ入れれば通知できる状態にしておく");
+        assertTrue(config.getString("discord.webhook-url", "").isBlank(),
+                "同梱の config.yml に Webhook URL が書かれている");
+    }
+
+    @Test
+    @DisplayName("Discord まわりも同梱の config.yml とコード側の既定値が揃っている")
+    void discordDefaultsMatchTheCode() {
+        assertEquals(DiscordNotifier.DEFAULT_EMBED_TITLE, config.getString("discord.embed-title"));
+        assertEquals(DiscordNotifier.DEFAULT_EMBED_COLOR, config.getInt("discord.embed-color"));
+        assertEquals(DiscordNotifier.DEFAULT_HEAD_IMAGE_URL,
+                config.getString("discord.head-image-url"));
+        assertEquals(DiscordNotifier.DEFAULT_FLUSH_TIMEOUT_SECONDS,
+                config.getLong("discord.flush-timeout-seconds"));
+    }
+
+    @Test
+    @DisplayName("頭の画像はプレイヤーごとに変わる")
+    void headImageUrlIsPerPlayer() {
+        // <uuid> を置き忘れると全員同じ顔が出る。
+        assertTrue(config.getString("discord.head-image-url", "").contains("<uuid>"),
+                "head-image-url に <uuid> が無い");
+    }
+
     private static YamlConfiguration loadBundledConfig() {
         try (InputStream in = DefaultConfigTest.class.getResourceAsStream("/config.yml")) {
             assertNotNull(in, "config.yml がテストのクラスパスに無い");

@@ -1,13 +1,14 @@
 package io.github.worldisalsohardcore;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import java.util.UUID;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.World;
@@ -15,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * 死亡を受けたときの振る舞い。
@@ -46,7 +48,36 @@ class DeathListenerTest {
 
         listener.onPlayerDeath(event);
 
-        verify(resetManager).trigger(eq("Steve"), contains("Steve"));
+        ResetCause cause = triggeredCause();
+        assertEquals(ResetCause.Kind.DEATH, cause.kind());
+        assertEquals("Steve", cause.subject());
+    }
+
+    @Test
+    @DisplayName("打ち消した死亡メッセージを死因としてリセットへ渡す")
+    void carriesTheSuppressedDeathMessage() {
+        // 打ち消し (HIGHEST) は起動 (MONITOR) より先に呼ばれる。後から event を読んでも
+        // null しか返らないので、打ち消す前に控えておけているかを見る。
+        PlayerDeathEvent event = deathOf("Steve", managed(true));
+        when(event.deathMessage()).thenReturn(Component.text("Steve was slain by Zombie"));
+
+        listener.suppressDeathMessage(event);
+        when(event.deathMessage()).thenReturn(null);
+        listener.onPlayerDeath(event);
+
+        assertEquals("Steve was slain by Zombie", triggeredCause().deathMessage());
+    }
+
+    @Test
+    @DisplayName("死亡メッセージが無ければ死因も持たせない")
+    void toleratesMissingDeathMessage() {
+        PlayerDeathEvent event = deathOf("Steve", managed(true));
+        when(event.deathMessage()).thenReturn(null);
+
+        listener.suppressDeathMessage(event);
+        listener.onPlayerDeath(event);
+
+        assertNull(triggeredCause().deathMessage());
     }
 
     @Test
@@ -58,7 +89,7 @@ class DeathListenerTest {
         listener.onPlayerDeath(event);
 
         verify(event, never()).deathMessage(any());
-        verify(resetManager, never()).trigger(any(), any());
+        verify(resetManager, never()).trigger(any());
     }
 
     @Test
@@ -70,10 +101,16 @@ class DeathListenerTest {
 
         listener.suppressDeathMessage(event);
 
-        verify(resetManager, never()).trigger(any(), any());
+        verify(resetManager, never()).trigger(any());
     }
 
     // ------------------------------------------------------------------ 補助
+
+    private ResetCause triggeredCause() {
+        ArgumentCaptor<ResetCause> captor = ArgumentCaptor.forClass(ResetCause.class);
+        verify(resetManager).trigger(captor.capture());
+        return captor.getValue();
+    }
 
     private World managed(boolean isManaged) {
         World world = mock(World.class);
@@ -85,6 +122,7 @@ class DeathListenerTest {
         Player player = mock(Player.class);
         when(player.getWorld()).thenReturn(world);
         when(player.getName()).thenReturn(name);
+        when(player.getUniqueId()).thenReturn(UUID.nameUUIDFromBytes(name.getBytes()));
 
         PlayerDeathEvent event = mock(PlayerDeathEvent.class);
         when(event.getEntity()).thenReturn(player);

@@ -65,7 +65,10 @@ final class TestServerDir {
                 "kick-message: \"<red>reset\"",
                 "shutdown-delay-ticks: 1",
                 "shutdown-mode: shutdown",
-                "randomize-seed: true"), StandardCharsets.UTF_8);
+                "randomize-seed: true",
+                // e2e は毎回リセットを1周させる。本物の Discord へ流さない。
+                "discord:",
+                "  enabled: false"), StandardCharsets.UTF_8);
 
         return new TestServerDir(dir);
     }

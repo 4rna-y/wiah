@@ -35,3 +35,37 @@ shutdown-mode: shutdown
 # リセット時に server.properties の level-seed を新しい乱数へ書き換える。
 # false の場合、level-seed が固定されていると毎回まったく同じ地形が再生成される。
 randomize-seed: true
+
+# ワールドリセットを Discord の Webhook へ Embed で流す。
+discord:
+  # false にすると一切送らない。
+  enabled: true
+
+  # 送り先の Webhook URL。空 (既定) の間は通知しない。
+  # Webhook URL は事実上の認証情報 = 知っていれば誰でもそのチャンネルへ投稿できるので、
+  # ここへ書いた値をリポジトリへコミットしないこと。設定するのは各サーバーの
+  # plugins/WorldIsAlsoHardcore/config.yml だけにする。
+  webhook-url: ""
+
+  # Webhook の表示名を上書きする。空なら Discord 側の設定のまま。
+  username: ""
+
+  # Embed の題と色 (10進数)。既定は 0xE74C3C = 15158332 の赤。
+  embed-title: "ワールドがリセットされました"
+  embed-color: 15158332
+
+  # Embed の下端に出す小さい文字。空文字で無効。
+  footer: ""
+
+  # サムネイルに出す頭 (HeadFace) の画像。<uuid> と <player> が置き換わる。
+  # スキンの描画は外部のアバターサービスに任せている。空文字にすると頭を出さない。
+  # 例: https://crafatar.com/avatars/<uuid>?size=128&overlay
+  head-image-url: "https://mc-heads.net/avatar/<uuid>/128"
+
+  # 1回の送信で待つ時間 (秒)。
+  timeout-seconds: 5
+
+  # サーバー停止時に送信の終了を待つ時間 (秒)。
+  # ここで待たないとリセットの通知そのものを送り切れずに落ちる。
+  # 待てなかった通知は保留され、次回起動時に送り直す。
+  flush-timeout-seconds: 8

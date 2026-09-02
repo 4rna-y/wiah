@@ -73,11 +73,12 @@ public final class ResetManager {
     /**
      * リセットを予約して全員をキックし、サーバーを停止する。
      *
-     * @param subject キック/ブロードキャスト文の <player> に差し込む名前
-     * @param reason  ログに残す発火理由
+     * @param cause 発火の理由。文面と Discord への通知はここから作る
      * @return 実際に発火したら true。すでに発火済みなら false。
      */
-    public boolean trigger(String subject, String reason) {
+    public boolean trigger(ResetCause cause) {
+        String subject = cause.subject();
+        String reason = cause.reason();
         if (!triggered.compareAndSet(false, true)) {
             plugin.getLogger().info("リセットは既に進行中のため、" + reason + " は無視しました。");
             return false;
@@ -118,6 +119,10 @@ public final class ResetManager {
         if (plugin.getConfig().getBoolean("randomize-seed", true)) {
             randomizeSeed();
         }
+
+        // キックの前に投げておく。送信は別スレッドで進み、停止までの猶予の間に終わる。
+        // 間に合わなくても保留ファイルに残るので、次回起動時に送り直される。
+        plugin.notifyDiscord(cause);
 
         // 死亡イベントの処理中に画面や接続を触ると不整合が起きうるので次 tick へ回す。
         Bukkit.getScheduler().runTask(plugin, () -> announce(subject));
@@ -218,7 +223,7 @@ public final class ResetManager {
         }
     }
 
-    /** ブートストラップ側と共通で使う最小限のログ出力口。 */
+    /** サーバーのロガーに届かない場所 (ブートストラップ) や、テストと共有する最小限のログ出力口。 */
     public interface Log {
         void info(String message);
 
@@ -228,11 +233,13 @@ public final class ResetManager {
     /**
      * 予約されたワールドフォルダを削除する。
      * サーバーが level.dat を読む前 ({@link WorldIsAlsoHardcoreBootstrap}) から呼ぶこと。
+     *
+     * @return 予約があったら true。呼び出し側はこれを「新しいワールドが始まる」の合図に使う
      */
-    static void consumePendingReset(Path dataDirectory, Log log) {
+    static boolean consumePendingReset(Path dataDirectory, Log log) {
         Path marker = dataDirectory.resolve(MARKER_FILE);
         if (!Files.isRegularFile(marker)) {
-            return;
+            return false;
         }
 
         List<String> lines;
@@ -240,7 +247,7 @@ public final class ResetManager {
             lines = Files.readAllLines(marker, StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.error("リセット予約ファイルを読めませんでした: " + e.getMessage());
-            return;
+            return false;
         }
 
         for (String line : lines) {
@@ -257,6 +264,7 @@ public final class ResetManager {
             // 消せないと毎回削除を試みてしまうため、明示的に警告する。
             log.error("リセット予約ファイルを削除できませんでした: " + marker + " (" + e.getMessage() + ")");
         }
+        return true;
     }
 
     /**
