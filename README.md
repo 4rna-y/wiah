@@ -7,6 +7,15 @@ Minecraft Paper 用プラグイン。ハードコアワールドで**参加中�
 | --- | --- |
 | `plugin/` | Paper プラグイン `WorldIsAlsoHardcore` |
 
+死亡したときに何をするかは `on-death` で選ぶ。
+
+| `on-death` | 死亡したら |
+| --- | --- |
+| `reset` (既定) | ワールドを削除して作り直す。以下の「動作の仕組み」 |
+| `finale` | ワールドを残したまま**ハードコアを終える**。[ハードコアの終わり方](#ハードコアの終わり方) |
+
+`finale` は企画の最後のワールド向けで、一度きり。
+
 再起動を担う常駐アプリは [`mstore`](https://github.com/4rna-y/mstore) として別リポジトリに分離してある
 (もとは本リポジトリの `supervisor/` モジュール)。mstore はサーバー監視に加えて HTTP の
 key-value ストアも提供する。ワールドをまたいで残したい値はそこに置ける。
@@ -32,6 +41,50 @@ key-value ストアも提供する。ワールドをまたいで残したい値�
 > プラグインの `onLoad()` より前に `level.dat` を読んでワールド設定 (seed / hardcore /
 > ワールドタイプ) を確定させるため、`onLoad()` で消すと再生成されるワールドが
 > **削除前の seed と設定をそのまま引き継いでしまう**。
+
+## ハードコアの終わり方
+
+`on-death: finale` にすると、死亡しても**ワールドを消さない**。予約ファイルも書かず、
+seed も変えず、キックもせず、サーバーも止めない。代わりに企画を締める。
+
+1. **死亡検知時** — チャットへ流れる死亡メッセージを打ち消し、落ちた持ち物と経験値も消す。
+   終わったことを `plugins/WorldIsAlsoHardcore/finale-done.txt` に書き、対象ワールドの
+   ハードコアを解除する。全員へタイトル「ハードコア終了」を出して猶予 (既定10秒) を待つ。
+2. **猶予のあと** — 死んでいる人を復活させ、参加中の全員の持ち物を空にして
+   **アドベンチャーモード**へ移す。そのうえで成績表を配る。
+3. **終了後にログインした人** — アドベンチャーへ移して成績表を渡す。持ち物には触らない
+   (`finale.apply-on-join`)。
+
+### 一度きりであること
+
+終わったことは `finale-done.txt` に残す。発火済みの目印をメモリにだけ持つと、再起動した後に
+もう一度誰かが死んだときに**全員の持ち物をもう一度消してしまう**。プラグインのデータフォルダは
+ワールドと違って消えないので、ここに置けば再起動をまたいで「もう終わっている」と分かる。
+
+このファイルがある間、対象ワールドでの死亡は普通の死亡として扱う — 死亡メッセージもそのまま
+流すし、`on-death` を `reset` に戻してもワールドは消えない。もう一度ハードコアを始めるなら
+このファイルを消すこと。
+
+### ハードコアを解除する理由
+
+ハードコアのワールドでは、復活しようとしたプレイヤーは観戦者にされる。解除しないと
+**企画を終わらせた当人だけが幽霊のまま取り残される**。そのため復活させる前に
+`World#setHardcore(false)` で解き、`server.properties` の `hardcore` も `false` へ揃える
+(`finale.disable-hardcore`、既定 `true`)。ハートの見た目が普通のものに変わる。
+
+### 成績表
+
+死亡回数を持っているのは [`death_counter`](../death_counter) なので、本を組むのも配るのも
+向こうに任せる。繋ぎはコマンド1本 (`finale.result-command`) で、既定では
+DeathCounter の `/result` を叩く。
+
+```yaml
+result-command: "result ハードコア終了|<player> が死亡|経過 <elapsed>"
+```
+
+`<player>` は最後に死亡した人、`<elapsed>` はワールドの経過時間に置き換わる。`|` は本の
+改行になる。空文字にすれば本を配らない。DeathCounter が入っていない場合はログに残して先へ進む
+(アドベンチャーへの切り替えは済ませる)。
 
 ## Discord への通知
 
@@ -71,6 +124,7 @@ $ mstore --server-dir /srv/minecraft --java-arg -Xmx4G
 
 | キー | 既定値 | 説明 |
 | --- | --- | --- |
+| `on-death` | `reset` | 死亡したときの振る舞い。`reset` または `finale` |
 | `worlds` | `[]` | 監視かつリセット対象のワールド名。空なら主ワールドとその `_nether` / `_the_end` |
 | `reset-delay-seconds` | `10` | 死亡から全員キックまでの猶予 (秒)。この間タイトルを出す |
 | `title` | (下記) | 猶予中に全員へ出すタイトル。`<player>` と `<seconds>` が置換される |
@@ -80,6 +134,25 @@ $ mstore --server-dir /srv/minecraft --java-arg -Xmx4G
 | `shutdown-delay-ticks` | `20` | キックからサーバー停止までの待ち時間 (tick) |
 | `shutdown-mode` | `shutdown` | `shutdown` または `restart` |
 | `randomize-seed` | `true` | リセット時に `level-seed` を新しい乱数へ書き換える |
+
+`reset-delay-seconds` 以下の5つは `on-death: reset` のときだけ効く。
+
+### ハードコアの終わり方 (`finale.*`)
+
+`on-death: finale` のときだけ効く。
+
+| キー | 既定値 | 説明 |
+| --- | --- | --- |
+| `delay-seconds` | `10` | 死亡から締めに入るまでの猶予 (秒)。この間タイトルを出す |
+| `title` | `ハードコア終了` | 猶予中に全員へ出すタイトル。`<player>` と `<seconds>` が置換される |
+| `subtitle` | (下記) | その下に出る小さい方。空文字で無効 |
+| `broadcast-message` | `""` | 猶予の開始と同時に流すチャット。空文字で無効 |
+| `message` | (下記) | 締めが済んだときに全員へ流すチャット。空文字で無効 |
+| `result-command` | (上記) | 成績表を配るコマンド。空文字で無効 |
+| `apply-on-join` | `true` | 終了後にログインした人もアドベンチャーへ移して成績表を渡す |
+| `join-result-command` | (上記) | その人へ渡すコマンド。`<joiner>` がその人の名前 |
+| `disable-hardcore` | `true` | 対象ワールドと `server.properties` のハードコアを解除する |
+| `embed-title` | `ハードコアが終了しました` | 終了を知らせる Embed の題。`discord.embed-title` の代わりに使う |
 
 ### Discord への通知 (`discord.*`)
 
@@ -97,10 +170,11 @@ $ mstore --server-dir /srv/minecraft --java-arg -Xmx4G
 
 ## コマンド
 
-`/wiahc <status|reset|reload|testwebhook>` — 権限 `worldisalsohardcore.admin` (既定: OP)
+`/wiahc <status|reset|finale|reload|testwebhook>` — 権限 `worldisalsohardcore.admin` (既定: OP)
 
-- `status` — 監視対象ワールドと主要設定、ワールド経過時間を表示
+- `status` — 監視対象ワールドと主要設定、`on-death`、終了済みかどうか、ワールド経過時間を表示
 - `reset` — 死亡と同じリセット処理を手動で実行
+- `finale` — 死亡と同じ終了処理を手動で実行 (`on-death` の値に関わらず動く)。**一度きり**
 - `reload` — `config.yml` を再読み込み
 - `testwebhook` — ワールドを消さずに Discord へテスト通知だけ送る (題に `[テスト]` が付く)
 
@@ -151,7 +225,11 @@ $ gradle :e2e:e2eTest      # 実サーバーを起動する。build には含ま
 - `ResetManagerTest` — 予約ファイルを読んでワールドを削除する部分。`level.dat` が無いフォルダを
   削除しない安全弁を含む
 - `DeathListenerTest` — 死亡時にチャットの死亡メッセージを打ち消し、その文面を死因として
-  持たせたままリセットを起動すること。イベントとプレイヤーはモックなのでクライアントは要らない
+  持たせたまま応答を起動すること。応答が終わっている (ハードコア終了済み) なら普通の死亡として
+  扱うこと、終了する応答なら落ちた持ち物も消すこと。イベントとプレイヤーはモックなので
+  クライアントは要らない
+- `FinaleManagerTest` — 終了の記録ファイルの読み書き (壊れていても終了済みとして扱う) と、
+  成績表を配るコマンドの組み立て
 - `DefaultConfigTest` — 同梱 config.yml の既定値。タイトルが「サーバーは10秒後に削除されます」と
   表示されること、猶予が10秒であることを固定する
 - `MarkerContractTest` — 予約ファイルのパスが mstore の既定値と一致すること
@@ -193,3 +271,7 @@ Paper を起動する。コンソールへ `wiahc reset` を送り、次の順�
   クライアントが要る。
 - **`shutdown-mode: restart`** — Spigot の restart-script を使う経路。e2e は既定の
   `shutdown` だけを見ている。
+- **`on-death: finale` の一周** — 実際に全員をアドベンチャーへ移して成績表が配られるところ。
+  記録ファイルとコマンドの組み立ては `FinaleManagerTest` が見ているが、持ち物を空にする・
+  死んだ本人を復活させる・`/result` が本を配る、は本物のサーバーとクライアントが要る。
+  `/wiahc finale` で手元のサーバーを使って確かめること。

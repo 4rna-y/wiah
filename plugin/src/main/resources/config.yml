@@ -1,3 +1,12 @@
+# 死亡したときの振る舞い。
+#   reset  : ワールドを削除して作り直す (ハードコアを続ける)
+#   finale : ワールドを残したままハードコアを終える (最後のワールド向け)
+#
+# finale では、削除も全員キックもサーバー停止もしない。代わりに下の finale: の
+# 通りに全員をアドベンチャーへ移して成績表を配る。一度終えると finale-done.txt が
+# 残り、再起動しても二度目は起きない (reset に戻しても終わったまま)。
+on-death: reset
+
 # 監視かつリセット対象のワールド名。
 # 空にすると「主ワールド (server.properties の level-name) と、
 # その _nether / _the_end」が自動的に対象になる。
@@ -35,6 +44,43 @@ shutdown-mode: shutdown
 # リセット時に server.properties の level-seed を新しい乱数へ書き換える。
 # false の場合、level-seed が固定されていると毎回まったく同じ地形が再生成される。
 randomize-seed: true
+
+# on-death: finale のときの終わり方。
+finale:
+  # 死亡してから締めに入るまでの猶予 (秒)。この間ずっとタイトルが出る。
+  delay-seconds: 10
+
+  # 猶予中に全員へ出すタイトル (MiniMessage 形式)。
+  # <player> は最後に死亡した人、<seconds> は上の delay-seconds に置き換わる。
+  title: "<gold><bold>ハードコア終了"
+  subtitle: "<gray><player> が死亡しました"
+
+  # 猶予の開始と同時に流すチャット (MiniMessage 形式)。空文字で無効。
+  broadcast-message: ""
+
+  # 締めが済んだときに全員へ流すチャット (MiniMessage 形式)。空文字で無効。
+  message: "<gold>ハードコアはここまでです。おつかれさまでした。<newline><gray>ワールドはこのまま残します。アドベンチャーモードで見て回れます。"
+
+  # 成績表 (死亡回数の本) を配るコマンド。コンソール権限で実行する。空文字で無効。
+  # DeathCounter の /result に投げるので、あちらが入っていないと本は配られない。
+  # <player> は最後に死亡した人、<elapsed> はワールドの経過時間。| が本の改行になる。
+  result-command: "result ハードコア終了|<player> が死亡|経過 <elapsed>"
+
+  # 終了後にログインした人をアドベンチャーへ移し、成績表を渡すか。
+  # その人の持ち物には触らない (終了の瞬間にいなかった人の物まで消さない)。
+  apply-on-join: true
+
+  # その人へ成績表を渡すコマンド。空文字なら渡さない。
+  # 上の置換に加えて、<joiner> がログインした人の名前になる。
+  join-result-command: "result --player <joiner> ハードコア終了|<player> が死亡|経過 <elapsed>"
+
+  # 対象ワールドのハードコアを解除する (server.properties の hardcore も false にする)。
+  # 解除しないと、最後に死亡した本人が復活しようとしたときに観戦者にされてしまい、
+  # アドベンチャーへ移せない。基本的に true のままにしておくこと。
+  disable-hardcore: true
+
+  # 終了を知らせる Embed の題。discord.embed-title の代わりに使う。
+  embed-title: "ハードコアが終了しました"
 
 # ワールドリセットを Discord の Webhook へ Embed で流す。
 discord:

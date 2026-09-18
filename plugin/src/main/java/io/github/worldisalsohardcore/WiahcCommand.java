@@ -1,7 +1,5 @@
 package io.github.worldisalsohardcore;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -15,17 +13,21 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-/** {@code /wiahc <status|reset|reload|testwebhook>} */
+/** {@code /wiahc <status|reset|finale|reload|testwebhook>} */
 public final class WiahcCommand implements BasicCommand {
 
-    private static final List<String> SUB_COMMANDS = List.of("status", "reset", "reload", "testwebhook");
+    private static final List<String> SUB_COMMANDS =
+            List.of("status", "reset", "finale", "reload", "testwebhook");
 
     private final WorldIsAlsoHardcorePlugin plugin;
     private final ResetManager resetManager;
+    private final FinaleManager finaleManager;
 
-    public WiahcCommand(WorldIsAlsoHardcorePlugin plugin, ResetManager resetManager) {
+    public WiahcCommand(WorldIsAlsoHardcorePlugin plugin, ResetManager resetManager,
+            FinaleManager finaleManager) {
         this.plugin = plugin;
         this.resetManager = resetManager;
+        this.finaleManager = finaleManager;
     }
 
     @Override
@@ -41,6 +43,11 @@ public final class WiahcCommand implements BasicCommand {
             case "status" -> {
                 sender.sendMessage(Component.text("監視対象ワールド: " + resetManager.managedWorldNames(),
                         NamedTextColor.AQUA));
+                sender.sendMessage(Component.text(
+                        "on-death: " + plugin.getConfig().getString("on-death",
+                                WorldIsAlsoHardcorePlugin.MODE_RESET)
+                                + (finaleManager.done() ? " (ハードコアは終了済み)" : ""),
+                        finaleManager.done() ? NamedTextColor.GOLD : NamedTextColor.GRAY));
                 sender.sendMessage(Component.text(
                         "猶予: " + plugin.getConfig().getLong("reset-delay-seconds",
                                 ResetManager.DEFAULT_RESET_DELAY_SECONDS) + "秒"
@@ -63,27 +70,45 @@ public final class WiahcCommand implements BasicCommand {
                             NamedTextColor.RED));
                 }
             }
+            case "finale" -> {
+                if (finaleManager.done()) {
+                    sender.sendMessage(Component.text("ハードコアは既に終了しています。",
+                            NamedTextColor.YELLOW));
+                    return;
+                }
+                sender.sendMessage(Component.text(
+                        "ハードコアを終了します。ワールドは削除しません。", NamedTextColor.GOLD));
+                if (!finaleManager.trigger(ResetCause.ofFinale(sender.getName(), uuidOf(sender)))) {
+                    sender.sendMessage(Component.text("終了処理を開始できませんでした。ログを確認してください。",
+                            NamedTextColor.RED));
+                }
+            }
             case "reload" -> {
                 plugin.reload();
                 sender.sendMessage(Component.text("config.yml を再読み込みしました。", NamedTextColor.GREEN));
             }
             case "testwebhook" -> testWebhook(sender);
             default -> sender.sendMessage(Component.text(
-                    "使い方: /wiahc <status|reset|reload|testwebhook>", NamedTextColor.RED));
+                    "使い方: /wiahc <status|reset|finale|reload|testwebhook>", NamedTextColor.RED));
         }
     }
 
-    /** ワールドを消さずに Embed だけ送ってみる。Webhook の設定確認用。 */
+    /**
+     * ワールドを消さずに Embed だけ送ってみる。Webhook の設定確認用。
+     *
+     * <p>題の差し替え (finale モードなら終了用の文言) も本番と揃うよう、送るのは
+     * プラグイン側の口を通す。
+     */
     private void testWebhook(CommandSender sender) {
-        plugin.notifier().ifPresentOrElse(notifier -> {
-            Duration elapsed = plugin.elapsedWorldTime().orElse(null);
-            notifier.notifyReset(ResetCause.ofTest(sender.getName(), uuidOf(sender)), elapsed,
-                    Instant.now());
+        if (plugin.notifier().isEmpty()) {
             sender.sendMessage(Component.text(
-                    "テスト通知を送りました。結果はサーバーのログを確認してください。", NamedTextColor.GREEN));
-        }, () -> sender.sendMessage(Component.text(
-                "Discord への通知が無効です。config.yml の discord を確認してください。",
-                NamedTextColor.RED)));
+                    "Discord への通知が無効です。config.yml の discord を確認してください。",
+                    NamedTextColor.RED));
+            return;
+        }
+        plugin.notifyDiscord(ResetCause.ofTest(sender.getName(), uuidOf(sender)));
+        sender.sendMessage(Component.text(
+                "テスト通知を送りました。結果はサーバーのログを確認してください。", NamedTextColor.GREEN));
     }
 
     private static UUID uuidOf(CommandSender sender) {

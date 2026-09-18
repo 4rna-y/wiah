@@ -97,6 +97,46 @@ class DefaultConfigTest {
                 "head-image-url に <uuid> が無い");
     }
 
+    @Test
+    @DisplayName("既定ではワールドを作り直す (finale は明示的に選ぶもの)")
+    void onDeathDefaultsToReset() {
+        // 既定が finale だと、普段のハードコアのつもりで入れた人が一度きりの終了を踏む。
+        assertEquals(WorldIsAlsoHardcorePlugin.MODE_RESET, config.getString("on-death"));
+    }
+
+    @Test
+    @DisplayName("終了まわりも同梱の config.yml とコード側の既定値が揃っている")
+    void finaleDefaultsMatchTheCode() {
+        assertEquals(FinaleManager.DEFAULT_DELAY_SECONDS, config.getLong("finale.delay-seconds"));
+        assertEquals(FinaleManager.DEFAULT_TITLE, config.getString("finale.title"));
+        assertEquals(FinaleManager.DEFAULT_SUBTITLE, config.getString("finale.subtitle"));
+        assertEquals(FinaleManager.DEFAULT_MESSAGE, config.getString("finale.message"));
+        assertEquals(FinaleManager.DEFAULT_RESULT_COMMAND, config.getString("finale.result-command"));
+        assertEquals(FinaleManager.DEFAULT_JOIN_RESULT_COMMAND,
+                config.getString("finale.join-result-command"));
+        assertEquals(FinaleManager.DEFAULT_EMBED_TITLE, config.getString("finale.embed-title"));
+        assertTrue(config.getBoolean("finale.apply-on-join"));
+    }
+
+    @Test
+    @DisplayName("既定でハードコアを解除する")
+    void finaleDisablesHardcore() {
+        // 解除しないと、最後に死亡した本人が観戦者のまま取り残される。
+        assertTrue(config.getBoolean("finale.disable-hardcore"));
+    }
+
+    @Test
+    @DisplayName("成績表のコマンドは DeathCounter の /result を叩く")
+    void finaleHandsTheBookToDeathCounter() {
+        // ここが変わると本が配られなくなる。置換の目印も一緒に固定しておく。
+        String command = config.getString("finale.result-command", "");
+        assertTrue(command.startsWith("result "), "/result を叩いていない: " + command);
+        assertTrue(command.contains("<player>"), "死亡者が入らない: " + command);
+        assertTrue(command.contains("<elapsed>"), "経過時間が入らない: " + command);
+        assertTrue(config.getString("finale.join-result-command", "").contains("<joiner>"),
+                "後から来た人を名指ししていない");
+    }
+
     private static YamlConfiguration loadBundledConfig() {
         try (InputStream in = DefaultConfigTest.class.getResourceAsStream("/config.yml")) {
             assertNotNull(in, "config.yml がテストのクラスパスに無い");

@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "io.github.worldisalsohardcore"
-version = "0.1.1"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -34,6 +34,9 @@ tasks.test {
 }
 
 tasks.processResources {
+    // expand() の中身は Gradle から見えないので、version だけ変えても再実行されない。
+    // 明示しておかないと jar の paper-plugin.yml に古い版が残る。
+    inputs.property("version", project.version)
     filesMatching("paper-plugin.yml") {
         expand("version" to project.version)
     }

@@ -6,5 +6,5 @@ api-version: '1.21'
 description: 誰か1人でも死亡したら全員をキックしてワールドをリセットするハードコア用プラグイン
 permissions:
   worldisalsohardcore.admin:
-    description: リセットの手動実行と設定リロード
+    description: リセットとハードコア終了の手動実行、設定リロード
     default: op

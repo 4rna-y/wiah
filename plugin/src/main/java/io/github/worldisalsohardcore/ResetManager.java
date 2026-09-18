@@ -27,7 +27,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 /** リセットの予約・実行を担当する。 */
-public final class ResetManager {
+public final class ResetManager implements DeathResponse {
 
     /** 次回起動時に削除するフォルダを記録する予約ファイル。 */
     static final String MARKER_FILE = "pending-reset.txt";
@@ -70,12 +70,26 @@ public final class ResetManager {
 
     // ------------------------------------------------------------------ 発火
 
+    @Override
+    public boolean handlesDeaths() {
+        // 発火した後もキックまでの数秒は死亡しうる。その分の死亡メッセージも
+        // 流さない (画面にはタイトルが出ている)。
+        return true;
+    }
+
+    @Override
+    public boolean clearsDeathDrops() {
+        // ワールドごと消えるので、地面に何が残っていても関係ない。
+        return false;
+    }
+
     /**
      * リセットを予約して全員をキックし、サーバーを停止する。
      *
      * @param cause 発火の理由。文面と Discord への通知はここから作る
      * @return 実際に発火したら true。すでに発火済みなら false。
      */
+    @Override
     public boolean trigger(ResetCause cause) {
         String subject = cause.subject();
         String reason = cause.reason();
@@ -309,29 +323,44 @@ public final class ResetManager {
 
     /** server.properties の level-seed を新しい乱数へ書き換える。 */
     private void randomizeSeed() {
+        long seed = new Random().nextLong();
+        if (setServerProperty("level-seed", Long.toString(seed), plugin.log())) {
+            plugin.getLogger().info("次回のワールド seed を " + seed + " に設定しました。");
+        }
+    }
+
+    /**
+     * server.properties の1項目を書き換える。その行が無ければ足す。
+     *
+     * <p>seed のほか、{@link FinaleManager} がハードコアを解くときにも使う。
+     *
+     * @return 書けたら true
+     */
+    static boolean setServerProperty(String key, String value, Log log) {
         Path properties = Path.of(SERVER_PROPERTIES).toAbsolutePath();
         if (!Files.isRegularFile(properties)) {
-            plugin.getLogger().warning(SERVER_PROPERTIES + " が見つからないため seed を変更できません: " + properties);
-            return;
+            log.error(SERVER_PROPERTIES + " が見つからないため " + key + " を変更できません: " + properties);
+            return false;
         }
-        long seed = new Random().nextLong();
         try {
             List<String> lines = new ArrayList<>(Files.readAllLines(properties, StandardCharsets.UTF_8));
             boolean replaced = false;
             for (int i = 0; i < lines.size(); i++) {
-                if (lines.get(i).startsWith("level-seed=")) {
-                    lines.set(i, "level-seed=" + seed);
+                if (lines.get(i).startsWith(key + "=")) {
+                    lines.set(i, key + "=" + value);
                     replaced = true;
                     break;
                 }
             }
             if (!replaced) {
-                lines.add("level-seed=" + seed);
+                lines.add(key + "=" + value);
             }
             Files.write(properties, lines, StandardCharsets.UTF_8);
-            plugin.getLogger().info("次回のワールド seed を " + seed + " に設定しました。");
+            log.info(SERVER_PROPERTIES + " の " + key + " を " + value + " にしました。");
+            return true;
         } catch (IOException e) {
-            plugin.getLogger().severe(SERVER_PROPERTIES + " を更新できませんでした: " + e.getMessage());
+            log.error(SERVER_PROPERTIES + " を更新できませんでした: " + e.getMessage());
+            return false;
         }
     }
 
@@ -339,11 +368,19 @@ public final class ResetManager {
 
     public void warnAboutConfiguration() {
         List<World> worlds = Bukkit.getWorlds();
-        if (!worlds.isEmpty() && !worlds.get(0).isHardcore()) {
+        boolean finaleMode = plugin.finaleMode();
+        boolean finished = plugin.finaleDone();
+
+        // 終了済みならハードコアが解けているのが正しい姿なので、そこは責めない。
+        if (!worlds.isEmpty() && !worlds.get(0).isHardcore() && !finished) {
             plugin.getLogger().warning(
                     "主ワールドがハードコアではありません。server.properties の hardcore=true を確認してください。");
         }
-        if (!plugin.getConfig().getBoolean("randomize-seed", true)) {
+        if (finaleMode) {
+            plugin.getLogger().warning(
+                    "on-death: finale — 死亡してもワールドは削除しません。"
+                    + (finished ? " ハードコアは既に終了しています。" : " 次の死亡でハードコアを終了します。"));
+        } else if (!plugin.getConfig().getBoolean("randomize-seed", true)) {
             plugin.getLogger().warning(
                     "randomize-seed が false です。level-seed が固定されていると毎回同じ地形が再生成されます。");
         }

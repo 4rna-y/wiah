@@ -23,6 +23,8 @@ public record ResetCause(Kind kind, String subject, UUID playerUuid, String deat
         DEATH,
         /** {@code /wiahc reset} で手動リセットした。 */
         COMMAND,
+        /** {@code /wiahc finale} で手動でハードコアを終わらせた。 */
+        FINALE,
         /** {@code /wiahc testwebhook}。ワールドはリセットしない。 */
         TEST
     }
@@ -42,6 +44,11 @@ public record ResetCause(Kind kind, String subject, UUID playerUuid, String deat
         return new ResetCause(Kind.COMMAND, who, uuid, null, "/wiahc reset (" + who + ")");
     }
 
+    /** {@code /wiahc finale} から作る。 */
+    public static ResetCause ofFinale(String who, UUID uuid) {
+        return new ResetCause(Kind.FINALE, who, uuid, null, "/wiahc finale (" + who + ")");
+    }
+
     /** {@code /wiahc testwebhook} から作る。 */
     public static ResetCause ofTest(String who, UUID uuid) {
         return new ResetCause(Kind.TEST, who, uuid, null, "/wiahc testwebhook (" + who + ")");
@@ -52,6 +59,7 @@ public record ResetCause(Kind kind, String subject, UUID playerUuid, String deat
         return switch (kind) {
             case DEATH -> "死亡したプレイヤー";
             case COMMAND -> "リセット実行者";
+            case FINALE -> "終了の実行者";
             case TEST -> "テスト実行者";
         };
     }

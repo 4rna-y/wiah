@@ -72,6 +72,11 @@ public final class DiscordNotifier implements AutoCloseable {
     /** Embed の見た目。config.yml から作る。 */
     public record Settings(String title, int color, String username, String headImageUrl,
                            String footer) {
+
+        /** 題だけ差し替えた写し。 */
+        Settings withTitle(String other) {
+            return new Settings(other, color, username, headImageUrl, footer);
+        }
     }
 
     // ------------------------------------------------------------------ 送る
@@ -83,7 +88,19 @@ public final class DiscordNotifier implements AutoCloseable {
      * @param at      通知に載せる時刻 (死亡した瞬間)
      */
     public CompletableFuture<Void> notifyReset(ResetCause cause, Duration elapsed, Instant at) {
-        String payload = buildPayload(settings, cause, elapsed, at);
+        return notifyReset(cause, elapsed, at, null);
+    }
+
+    /**
+     * 題を差し替えて通知する。
+     *
+     * @param title 差し替える Embed の題。null なら {@code discord.embed-title} のまま。
+     *              ハードコアの終了はリセットではないので、別の文言で送るために要る
+     */
+    public CompletableFuture<Void> notifyReset(ResetCause cause, Duration elapsed, Instant at,
+            String title) {
+        Settings used = title == null || title.isBlank() ? settings : settings.withTitle(title);
+        String payload = buildPayload(used, cause, elapsed, at);
         // 送る前に残す。ここから先はいつプロセスが消えてもよい。
         writePending(payload);
         return submit(payload);
